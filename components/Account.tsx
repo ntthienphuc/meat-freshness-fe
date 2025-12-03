@@ -1,0 +1,522 @@
+
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { HistoryItem, ActionStatus, BlogPost, StorageEnvironment, ContainerType } from '../types';
+import { 
+  Clock, 
+  Bookmark, 
+  BookOpen, 
+  Zap, 
+  Trash, 
+  Shield, 
+  Award, 
+  Leaf,
+  ChevronRight,
+  Crown,
+  Refrigerator,
+  Snowflake,
+  Package,
+  Utensils,
+  Sun,
+  Box,
+  ShoppingBag,
+  Ban
+} from 'lucide-react';
+import { blogPosts } from '../utils/mockData';
+
+// --- MOCK USER PROFILE ---
+const USER_PROFILE = {
+  name: "Phúc",
+  avatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=200",
+  level: 5,
+  title: "Foodie Sành Ăn",
+  xp: 75, // 75% to level 6
+  nextLevelXp: 100
+};
+
+const Account: React.FC = () => {
+  // --- STATE ---
+  const [activeTab, setActiveTab] = useState<'storage' | 'saved'>('storage');
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [savedPosts, setSavedPosts] = useState<BlogPost[]>([]);
+  const [subscription, setSubscription] = useState<{isPremium: boolean, plan: string}>({isPremium: false, plan: 'free'});
+  
+  // State to toggle storage config panel for a specific item
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+
+  // --- LOAD DATA ---
+  const loadData = () => {
+    try {
+      // 1. Load History
+      const historyStr = localStorage.getItem('meatHistory');
+      if (historyStr) {
+        const parsed = JSON.parse(historyStr);
+        setHistory(Array.isArray(parsed) ? parsed : []);
+      }
+
+      // 2. Load Saved Posts
+      const savedIdsStr = localStorage.getItem('savedPosts');
+      const savedIds: string[] = savedIdsStr ? JSON.parse(savedIdsStr) : [];
+      
+      // Filter blogPosts based on saved IDs
+      if (blogPosts && Array.isArray(blogPosts) && Array.isArray(savedIds)) {
+          const posts = blogPosts.filter(p => savedIds.includes(p.id));
+          setSavedPosts(posts);
+      } else {
+          setSavedPosts([]);
+      }
+
+      // 3. Load Subscription
+      const isPrem = localStorage.getItem('isPremium') === 'true';
+      const planType = localStorage.getItem('premiumPlan') || 'free';
+      setSubscription({isPremium: isPrem, plan: planType});
+
+    } catch (error) {
+      console.error("Load data error", error);
+      setHistory([]);
+      setSavedPosts([]);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('storage', loadData);
+    window.addEventListener('premium-update', loadData);
+    return () => {
+        window.removeEventListener('storage', loadData);
+        window.removeEventListener('premium-update', loadData);
+    };
+  }, [activeTab]); 
+
+  // --- RECALCULATE DEADLINE LOGIC ---
+  const recalculateDeadline = (
+      level: number, 
+      env: StorageEnvironment, 
+      container: ContainerType, 
+      baseTimestamp: number
+    ): number => {
+    const oneDay = 24 * 60 * 60 * 1000;
+    const oneHour = 60 * 60 * 1000;
+    const start = baseTimestamp || Date.now();
+
+    let duration = 0;
+
+    // 1. Environment Base Time
+    if (env === 'fridge') {
+        if (level === 1) duration = 4 * oneDay;
+        else if (level === 2) duration = 3 * oneDay;
+        else if (level === 3) duration = 1 * oneDay;
+        else duration = 0;
+    } else if (env === 'freezer') {
+        if (level === 1) duration = 90 * oneDay;
+        else if (level === 2) duration = 60 * oneDay;
+        else if (level === 3) duration = 7 * oneDay;
+        else duration = 0;
+    } else if (env === 'room_temp') {
+        // Meat at room temp spoils very fast
+        if (level === 1) duration = 4 * oneHour;
+        else if (level === 2) duration = 2 * oneHour;
+        else duration = 0;
+    }
+
+    // 2. Container Modifiers
+    if (container === 'box') {
+        // Box protects slightly better/cleaner
+        if (env === 'room_temp') duration += 1 * oneHour; // +1h if boxed outside
+        else duration *= 1.1; // +10% duration
+    } else if (container === 'none') {
+        // No packaging is bad
+        if (env === 'freezer') duration *= 0.5; // Freezer burn risk
+        else duration *= 0.8; // Dries out or contaminates
+    }
+    
+    return start + duration;
+  };
+
+  // --- ACTIONS: STORAGE ---
+  const updateStatus = (id: string, status: ActionStatus) => {
+    const updatedHistory = history.map(item => 
+      item.id === id ? { ...item, actionStatus: status } : item
+    );
+    setHistory(updatedHistory);
+    localStorage.setItem('meatHistory', JSON.stringify(updatedHistory));
+  };
+
+  const updateStorageConfig = (id: string, updates: { env?: StorageEnvironment, container?: ContainerType }) => {
+      const updatedHistory = history.map(item => {
+          if (item.id === id) {
+              const newEnv = updates.env || item.storageEnvironment || 'fridge';
+              const newContainer = updates.container || item.containerType || 'bag';
+              
+              // Recalculate deadline
+              const newDeadline = recalculateDeadline(item.freshnessLevel, newEnv, newContainer, item.timestamp);
+              
+              return { 
+                  ...item, 
+                  storageEnvironment: newEnv,
+                  containerType: newContainer,
+                  storageDeadline: newDeadline,
+                  actionStatus: (item.actionStatus === 'cooked' || item.actionStatus === 'discarded') ? 'storing' : item.actionStatus 
+              };
+          }
+          return item;
+      });
+      setHistory(updatedHistory);
+      localStorage.setItem('meatHistory', JSON.stringify(updatedHistory));
+  };
+
+  const deleteItem = (id: string) => {
+     if(window.confirm("Xóa mục này khỏi lịch sử?")) {
+         const updatedHistory = history.filter(item => item.id !== id);
+         setHistory(updatedHistory);
+         localStorage.setItem('meatHistory', JSON.stringify(updatedHistory));
+     }
+  };
+
+  const clearHistory = () => {
+    if (window.confirm("Bạn có chắc muốn xóa toàn bộ tủ lạnh ảo?")) {
+      setHistory([]);
+      localStorage.removeItem('meatHistory');
+    }
+  };
+
+  // --- ACTIONS: SAVED POSTS ---
+  const unsavePost = (e: React.MouseEvent, id: string) => {
+    e.preventDefault(); 
+    e.stopPropagation();
+    try {
+        const currentSavedIdsStr = localStorage.getItem('savedPosts');
+        let currentSavedIds: string[] = currentSavedIdsStr ? JSON.parse(currentSavedIdsStr) : [];
+        
+        if (Array.isArray(currentSavedIds)) {
+            const newIds = currentSavedIds.filter(sid => sid !== id);
+            localStorage.setItem('savedPosts', JSON.stringify(newIds));
+            setSavedPosts(prev => prev.filter(p => p.id !== id));
+        }
+    } catch (e) {
+        console.error("Error unsaving post", e);
+    }
+  };
+
+  // --- HELPER: TIME ---
+  const getHoursLeft = (deadline: number) => {
+    const now = Date.now();
+    const diff = deadline - now;
+    return Math.ceil(diff / (1000 * 60 * 60));
+  };
+
+  const getDisplayStatus = (item: HistoryItem) => {
+     if (item.actionStatus === 'cooked') return { label: 'Đã nấu', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' };
+     if (item.actionStatus === 'discarded') return { label: 'Đã bỏ', color: 'text-slate-400', bg: 'bg-slate-50', border: 'border-slate-100' };
+     
+     const hours = getHoursLeft(item.storageDeadline);
+     if (hours <= 0 || item.actionStatus === 'expired') return { label: 'Hết hạn', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-200' };
+     
+     if (hours > 24) {
+         const days = Math.floor(hours / 24);
+         return { label: `Còn ${days} ngày`, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' };
+     }
+     
+     return { label: `Còn ${hours}h`, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' };
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6 pb-24 animate-fade-in-up">
+      
+      {/* --- 1. PROFILE CARD --- */}
+      <div className="bg-white rounded-3xl p-6 shadow-xl shadow-rose-100/50 border border-rose-50 relative overflow-hidden">
+         <div className="absolute top-0 right-0 w-32 h-32 bg-rose-100 rounded-bl-[4rem] -mr-4 -mt-4 opacity-50"></div>
+         
+         <div className="relative z-10 flex items-center gap-4">
+            <div className="relative">
+                <img 
+                    src={USER_PROFILE.avatar} 
+                    alt="Avatar" 
+                    className={`w-20 h-20 rounded-full object-cover border-4 shadow-sm bg-slate-200 ${subscription.plan === 'yearly' ? 'border-amber-400' : subscription.plan === 'monthly' ? 'border-rose-400' : 'border-slate-100'}`}
+                />
+                {/* Level Badge */}
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-rose-500 text-white rounded-full flex items-center justify-center text-xs font-bold border-2 border-white">
+                    {USER_PROFILE.level}
+                </div>
+            </div>
+            <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-2xl font-black text-slate-800">{USER_PROFILE.name}</h2>
+                    {/* Membership Badge */}
+                    {subscription.isPremium ? (
+                        <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide flex items-center gap-1 shadow-sm ${
+                            subscription.plan === 'yearly' 
+                            ? 'bg-gradient-to-r from-amber-300 to-yellow-500 text-white' 
+                            : 'bg-gradient-to-r from-rose-400 to-pink-500 text-white'
+                        }`}>
+                            <Crown className="w-3 h-3 fill-current" />
+                            {subscription.plan === 'yearly' ? 'VIP' : 'Premium'}
+                        </div>
+                    ) : (
+                        <div className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wide">
+                            Free
+                        </div>
+                    )}
+                </div>
+                
+                <p className="text-sm text-slate-500 font-medium mb-2">{USER_PROFILE.title}</p>
+                
+                {/* XP Bar */}
+                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 mb-1">
+                    <span>XP</span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-50">
+                        <div className="h-full bg-rose-500 rounded-full" style={{ width: `${USER_PROFILE.xp}%` }}></div>
+                    </div>
+                    <span>{USER_PROFILE.xp}/{USER_PROFILE.nextLevelXp}</span>
+                </div>
+            </div>
+         </div>
+
+         {/* Badges */}
+         <div className="flex gap-3 mt-6 pt-6 border-t border-dashed border-slate-100 overflow-x-auto no-scrollbar">
+             {[
+                 { icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50', label: 'An toàn' },
+                 { icon: Award, color: 'text-amber-500', bg: 'bg-amber-50', label: 'Top 1' },
+                 { icon: Leaf, color: 'text-emerald-500', bg: 'bg-emerald-50', label: 'Sống xanh' },
+                 { icon: Zap, color: 'text-purple-500', bg: 'bg-purple-50', label: 'Nhanh tay' },
+             ].map((badge, i) => (
+                 <div key={i} className="flex flex-col items-center gap-1 min-w-[60px]">
+                     <div className={`w-10 h-10 rounded-xl ${badge.bg} ${badge.color} flex items-center justify-center shadow-sm`}>
+                         <badge.icon className="w-5 h-5" />
+                     </div>
+                     <span className="text-[9px] font-bold text-slate-400 uppercase mt-1">{badge.label}</span>
+                 </div>
+             ))}
+         </div>
+         
+         {!subscription.isPremium && (
+             <Link to="/premium" className="mt-4 flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-100 to-orange-100 border border-amber-200 group cursor-pointer">
+                 <div className="flex items-center gap-3">
+                     <div className="p-1.5 bg-white/50 rounded-lg text-amber-600">
+                         <Crown className="w-4 h-4" />
+                     </div>
+                     <div>
+                         <div className="text-xs font-bold text-amber-800">Nâng cấp VIP</div>
+                         <div className="text-[10px] text-amber-600">Mở khóa trợ lý AI & nhiều hơn nữa</div>
+                     </div>
+                 </div>
+                 <ChevronRight className="w-4 h-4 text-amber-600 group-hover:translate-x-1 transition-transform" />
+             </Link>
+         )}
+      </div>
+
+      {/* --- 2. TABS --- */}
+      <div className="flex p-1 bg-slate-100/80 rounded-2xl">
+          <button 
+             onClick={() => setActiveTab('storage')}
+             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'storage' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+              <Clock className="w-4 h-4" /> Bảo quản ({history.length})
+          </button>
+          <button 
+             onClick={() => setActiveTab('saved')}
+             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'saved' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+              <Bookmark className="w-4 h-4" /> Đã lưu ({savedPosts.length})
+          </button>
+      </div>
+
+      {/* --- 3. CONTENT --- */}
+      
+      {/* STORAGE TAB CONTENT */}
+      {activeTab === 'storage' && (
+          <div className="space-y-4">
+              {history.length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-3xl border-2 border-dashed border-slate-100">
+                      <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Clock className="w-8 h-8 text-rose-300" />
+                      </div>
+                      <p className="text-slate-400 text-sm">Tủ lạnh trống trơn.</p>
+                      <Link to="/scan" className="text-rose-500 font-bold text-sm hover:underline mt-2 block">Quét thịt ngay</Link>
+                  </div>
+              ) : (
+                  <>
+                    <div className="flex justify-end">
+                        <button onClick={clearHistory} className="text-xs font-bold text-slate-400 hover:text-rose-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-rose-50 transition-colors">
+                            <Trash className="w-3 h-3" /> Xóa tất cả
+                        </button>
+                    </div>
+                    {history.map(item => {
+                        const status = getDisplayStatus(item);
+                        const currentEnv = item.storageEnvironment || 'fridge';
+                        const currentContainer = item.containerType || 'bag';
+                        const isSpoiled = item.freshnessLevel >= 4;
+                        const isEditing = editingItemId === item.id;
+
+                        return (
+                            <div key={item.id} className={`bg-white p-4 rounded-2xl border ${status.border} shadow-sm gap-4 transition-all hover:shadow-md flex flex-col`}>
+                                <div className="flex gap-4">
+                                    <div className="w-20 h-20 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0 relative">
+                                        <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.meatType} />
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold text-center py-0.5">
+                                            LV.{item.freshnessLevel}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex-1 flex flex-col justify-between">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h4 className="font-bold text-slate-800">{item.meatType}</h4>
+                                                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${status.bg} ${status.color}`}>
+                                                    {status.label}
+                                                </span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => setEditingItemId(isEditing ? null : item.id)} 
+                                                    className={`p-1.5 rounded-lg transition-colors ${isEditing ? 'bg-amber-100 text-amber-600' : 'bg-slate-50 text-slate-400 hover:text-amber-500'}`}
+                                                >
+                                                    <Package className="w-4 h-4" />
+                                                </button>
+                                                <Link to={`/dictionary?type=${encodeURIComponent(item.meatType)}&level=${item.freshnessLevel}`} className="p-1.5 bg-slate-50 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors">
+                                                    <BookOpen className="w-4 h-4" />
+                                                </Link>
+                                                <button onClick={() => deleteItem(item.id)} className="p-1.5 bg-slate-50 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors">
+                                                    <Trash className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Summary Info */}
+                                        {!isEditing && item.actionStatus !== 'discarded' && item.actionStatus !== 'cooked' && (
+                                            <div className="flex items-center gap-2 mt-2 text-xs text-slate-500 font-medium">
+                                                <span className="flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded">
+                                                    {currentEnv === 'fridge' ? <Refrigerator className="w-3 h-3"/> : currentEnv === 'freezer' ? <Snowflake className="w-3 h-3"/> : <Sun className="w-3 h-3"/>} 
+                                                    {currentEnv === 'fridge' ? 'Tủ mát' : currentEnv === 'freezer' ? 'Tủ đông' : 'Nhiệt độ phòng'}
+                                                </span>
+                                                <span className="flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded">
+                                                    {currentContainer === 'box' ? <Box className="w-3 h-3"/> : currentContainer === 'bag' ? <ShoppingBag className="w-3 h-3"/> : <Ban className="w-3 h-3"/>}
+                                                    {currentContainer === 'box' ? 'Hộp kín' : currentContainer === 'bag' ? 'Túi/Màng' : 'Không gói'}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Detailed Storage Config Panel */}
+                                {isEditing && item.actionStatus === 'storing' && (
+                                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 animate-fade-in mt-2">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {/* Column 1: Environment */}
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Môi trường</p>
+                                                <div className="flex flex-col gap-1">
+                                                    <button 
+                                                        onClick={() => updateStorageConfig(item.id, { env: 'fridge' })}
+                                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${currentEnv === 'fridge' ? 'bg-white shadow-sm text-sky-600 ring-1 ring-sky-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                                                    >
+                                                        <Refrigerator className="w-3 h-3" /> Tủ mát
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => updateStorageConfig(item.id, { env: 'freezer' })}
+                                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${currentEnv === 'freezer' ? 'bg-white shadow-sm text-blue-600 ring-1 ring-blue-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                                                    >
+                                                        <Snowflake className="w-3 h-3" /> Tủ đông
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => updateStorageConfig(item.id, { env: 'room_temp' })}
+                                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${currentEnv === 'room_temp' ? 'bg-white shadow-sm text-amber-600 ring-1 ring-amber-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                                                    >
+                                                        <Sun className="w-3 h-3" /> Nhiệt độ phòng
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Column 2: Container */}
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vật chứa</p>
+                                                <div className="flex flex-col gap-1">
+                                                    <button 
+                                                        onClick={() => updateStorageConfig(item.id, { container: 'box' })}
+                                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${currentContainer === 'box' ? 'bg-white shadow-sm text-emerald-600 ring-1 ring-emerald-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                                                    >
+                                                        <Box className="w-3 h-3" /> Hộp kín
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => updateStorageConfig(item.id, { container: 'bag' })}
+                                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${currentContainer === 'bag' ? 'bg-white shadow-sm text-purple-600 ring-1 ring-purple-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                                                    >
+                                                        <ShoppingBag className="w-3 h-3" /> Túi / Màng
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => updateStorageConfig(item.id, { container: 'none' })}
+                                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${currentContainer === 'none' ? 'bg-white shadow-sm text-rose-600 ring-1 ring-rose-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                                                    >
+                                                        <Ban className="w-3 h-3" /> Không gói
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Quick Actions (Cooked/Discarded) */}
+                                {item.actionStatus !== 'cooked' && item.actionStatus !== 'discarded' && (
+                                     <div className="flex gap-2 pt-2 border-t border-dashed border-slate-100">
+                                        {/* Hide "Cooked" if Meat is Spoiled (Level 4-5) */}
+                                        {!isSpoiled && (
+                                            <button onClick={() => updateStatus(item.id, 'cooked')} className="flex-1 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1">
+                                                <Utensils className="w-3 h-3" /> Đã nấu
+                                            </button>
+                                        )}
+                                        <button onClick={() => updateStatus(item.id, 'discarded')} className="flex-1 py-1.5 rounded-lg bg-slate-50 text-slate-500 text-xs font-bold hover:bg-slate-100 transition-colors flex items-center justify-center gap-1">
+                                            <Trash className="w-3 h-3" /> Vứt bỏ
+                                        </button>
+                                     </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                  </>
+              )}
+          </div>
+      )}
+
+      {/* SAVED CONTENT */}
+      {activeTab === 'saved' && (
+          <div className="space-y-4">
+              {savedPosts.length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-3xl border-2 border-dashed border-slate-100">
+                      <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Bookmark className="w-8 h-8 text-rose-300" />
+                      </div>
+                      <p className="text-slate-400 text-sm">Chưa lưu bài viết nào.</p>
+                      <Link to="/blog" className="text-rose-500 font-bold text-sm hover:underline mt-2 block">Khám phá Blog</Link>
+                  </div>
+              ) : (
+                  savedPosts.map(post => (
+                      <Link to={`/blog/${post.id}`} key={post.id} className="block bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group relative">
+                          <div className="flex gap-4">
+                              <div className="w-20 h-20 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0">
+                                  <img src={post.image} className="w-full h-full object-cover" alt={post.title} />
+                              </div>
+                              <div className="flex-1">
+                                  <div className="text-[10px] font-bold text-rose-500 uppercase mb-1">{post.category}</div>
+                                  <h4 className="font-bold text-slate-800 leading-snug line-clamp-2 mb-2 group-hover:text-rose-600 transition-colors">{post.title}</h4>
+                                  <div className="flex items-center gap-1 text-slate-400 text-xs">
+                                      <span>Đọc ngay</span> <ChevronRight className="w-3 h-3" />
+                                  </div>
+                              </div>
+                          </div>
+                          <button 
+                            onClick={(e) => unsavePost(e, post.id)}
+                            className="absolute top-2 right-2 p-2 text-rose-500 hover:bg-rose-50 rounded-full transition-colors z-10"
+                          >
+                              <Bookmark className="w-4 h-4 fill-rose-500" />
+                          </button>
+                      </Link>
+                  ))
+              )}
+          </div>
+      )}
+
+    </div>
+  );
+};
+
+export default Account;

@@ -1,0 +1,8 @@
+{
+  "name": "Trợ lý Thịt Tươi (Fresh Meat Assistant)",
+  "description": "Ứng dụng kiểm tra độ tươi của thịt bằng AI, cung cấp kiến thức bảo quản và từ điển thịt tương tác.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

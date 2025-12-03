@@ -1,0 +1,166 @@
+
+import React from 'react';
+import { Check, Crown, Sparkles, X, Zap, ShieldCheck, Smartphone, Brain } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+const Premium: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handleSubscribe = (plan: string) => {
+    // Simulate API call
+    setTimeout(() => {
+        localStorage.setItem('isPremium', 'true');
+        localStorage.setItem('premiumPlan', plan);
+        
+        // Dispatch event for immediate UI update
+        window.dispatchEvent(new Event('premium-update'));
+        window.dispatchEvent(new Event('storage'));
+        
+        alert(`Chúc mừng! Bạn đã đăng ký gói ${plan} thành công.`);
+        navigate(-1); // Go back to the previous page (Scanner or others)
+    }, 500);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 animate-fade-in-up overflow-y-auto bg-slate-900">
+      
+      {/* Luxury Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 z-0 pointer-events-none"></div>
+      <div className="absolute top-0 left-0 w-full h-full opacity-10 z-0 pointer-events-none" style={{backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")'}}></div>
+      <div className="absolute top-20 right-20 w-64 h-64 bg-amber-500/20 rounded-full blur-[100px] pointer-events-none"></div>
+      <div className="absolute bottom-20 left-20 w-64 h-64 bg-rose-500/20 rounded-full blur-[100px] pointer-events-none"></div>
+
+      {/* Close Button */}
+      <button 
+        onClick={() => navigate(-1)}
+        className="absolute top-6 right-6 z-50 p-2 bg-white/10 text-white rounded-full hover:bg-white/20 transition-colors backdrop-blur-sm"
+      >
+        <X className="w-6 h-6" />
+      </button>
+
+      <div className="relative z-10 max-w-5xl w-full space-y-10 py-10">
+        
+        {/* Header */}
+        <div className="text-center space-y-4">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-200 to-yellow-500 text-amber-900 font-bold text-xs uppercase tracking-widest shadow-lg shadow-amber-500/20">
+                <Crown className="w-3 h-3 fill-amber-900" /> Gói Thành Viên VIP
+            </div>
+            <h1 className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-100 to-amber-400 font-serif">
+                Mở Khóa Sức Mạnh AI
+            </h1>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto font-medium">
+                Trải nghiệm trợ lý ẩm thực toàn năng. Từ lên thực đơn, đi chợ hộ đến người bạn tâm giao.
+            </p>
+        </div>
+
+        {/* Plans Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 px-4 md:px-10">
+            
+            {/* Monthly Plan */}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 hover:border-white/20 transition-all group relative overflow-hidden">
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 className="text-white font-bold text-xl mb-1">Gói Tháng</h3>
+                        <p className="text-slate-400 text-sm">Linh hoạt, hủy bất cứ lúc nào</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-white group-hover:scale-110 transition-transform">
+                        <Zap className="w-6 h-6" />
+                    </div>
+                </div>
+                <div className="mb-8">
+                    <span className="text-4xl font-black text-white">49.000đ</span>
+                    <span className="text-slate-500">/tháng</span>
+                </div>
+                <ul className="space-y-4 mb-8">
+                    <li className="flex items-center gap-3 text-slate-300 text-sm">
+                        <Check className="w-5 h-5 text-emerald-400" /> Truy cập Trợ lý AI (3 Personas)
+                    </li>
+                    <li className="flex items-center gap-3 text-slate-300 text-sm">
+                        <Check className="w-5 h-5 text-emerald-400" /> <strong>Scan thịt với AI thế hệ mới (Gemini 3 Pro)</strong>
+                    </li>
+                    <li className="flex items-center gap-3 text-slate-300 text-sm">
+                        <Check className="w-5 h-5 text-emerald-400" /> Độ chính xác cao hơn 99%
+                    </li>
+                    <li className="flex items-center gap-3 text-slate-300 text-sm">
+                        <Check className="w-5 h-5 text-emerald-400" /> Không giới hạn lượt Scan
+                    </li>
+                    <li className="flex items-center gap-3 text-slate-300 text-sm">
+                        <Check className="w-5 h-5 text-emerald-400" /> Loại bỏ quảng cáo
+                    </li>
+                </ul>
+                <button 
+                    onClick={() => handleSubscribe('monthly')}
+                    className="w-full py-4 rounded-2xl bg-white/10 text-white font-bold border border-white/20 hover:bg-white hover:text-slate-900 transition-all"
+                >
+                    Chọn Gói Tháng
+                </button>
+            </div>
+
+            {/* Yearly Plan (Featured) */}
+            <div className="bg-gradient-to-b from-amber-500/20 to-slate-900/80 backdrop-blur-xl border border-amber-500/50 rounded-[2.5rem] p-8 relative overflow-hidden shadow-2xl shadow-amber-500/10 transform hover:-translate-y-2 transition-transform duration-300">
+                <div className="absolute top-0 right-0 bg-amber-500 text-amber-900 text-xs font-bold px-4 py-1 rounded-bl-2xl z-10">
+                    TIẾT KIỆM 15%
+                </div>
+                
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 className="text-amber-200 font-bold text-xl mb-1">Gói Năm</h3>
+                        <p className="text-amber-200/60 text-sm">Thanh toán một lần, dùng cả năm</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500 flex items-center justify-center text-amber-900 shadow-lg shadow-amber-500/20">
+                        <Crown className="w-6 h-6 fill-amber-900" />
+                    </div>
+                </div>
+                <div className="mb-8">
+                    <span className="text-5xl font-black text-white">499.000đ</span>
+                    <span className="text-amber-200/60">/năm</span>
+                </div>
+                <ul className="space-y-4 mb-8">
+                    <li className="flex items-center gap-3 text-white text-sm font-medium">
+                        <div className="p-1 bg-amber-500 rounded-full"><Check className="w-3 h-3 text-amber-900 stroke-[3]" /></div>
+                        Tất cả quyền lợi gói tháng
+                    </li>
+                    <li className="flex items-center gap-3 text-white text-sm font-medium">
+                        <div className="p-1 bg-amber-500 rounded-full"><Brain className="w-3 h-3 text-amber-900 stroke-[3]" /></div>
+                        <strong>Model Scan Thịt Chuyên Sâu (Deep Learning)</strong>
+                    </li>
+                    <li className="flex items-center gap-3 text-white text-sm font-medium">
+                        <div className="p-1 bg-amber-500 rounded-full"><Check className="w-3 h-3 text-amber-900 stroke-[3]" /></div>
+                        Ưu tiên hỗ trợ 24/7
+                    </li>
+                    <li className="flex items-center gap-3 text-white text-sm font-medium">
+                        <div className="p-1 bg-amber-500 rounded-full"><Check className="w-3 h-3 text-amber-900 stroke-[3]" /></div>
+                        Badge thành viên VIP
+                    </li>
+                </ul>
+                <button 
+                    onClick={() => handleSubscribe('yearly')}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 text-amber-900 font-bold shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-[1.02] transition-all"
+                >
+                    Đăng Ký Ngay
+                </button>
+            </div>
+        </div>
+
+        {/* Comparison / Trust */}
+        <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto px-4">
+            <div className="text-center space-y-2">
+                <ShieldCheck className="w-8 h-8 text-emerald-400 mx-auto" />
+                <h4 className="text-white font-bold text-sm">Bảo mật cao</h4>
+            </div>
+            <div className="text-center space-y-2">
+                <Smartphone className="w-8 h-8 text-blue-400 mx-auto" />
+                <h4 className="text-white font-bold text-sm">Đồng bộ thiết bị</h4>
+            </div>
+            <div className="text-center space-y-2">
+                <Sparkles className="w-8 h-8 text-purple-400 mx-auto" />
+                <h4 className="text-white font-bold text-sm">AI Thông Minh</h4>
+            </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default Premium;
